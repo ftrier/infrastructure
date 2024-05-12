@@ -99,3 +99,8 @@ services:
       - "traefik.http.routers.grafana.rule=Host(`${URL_GRAFANA}`)"
       - "traefik.http.routers.grafana.entrypoints=websecure"
       - "traefik.http.routers.grafana.tls.certresolver=resolver"
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
