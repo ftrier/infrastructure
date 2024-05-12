@@ -1,0 +1,98 @@
+version: '3'
+
+services:
+  reverse-proxy:
+    image: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker"
+      - "--entryPoints.websecure.address=:443"
+      - "--certificatesresolvers.resolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.resolver.acme.email={$ACME_MAIL}"
+      - "--certificatesresolvers.resolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "443:443"
+      # - "8080:8080"
+    volumes:
+      - ./letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock
+  postgres:
+    image: postgres
+    container_name: postgres
+    restart: always
+    # ports:
+    #   - 5432:5432
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres/provisioning:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DBS=${POSTGRES_MLFLOW}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow
+    container_name: mlflow
+    restart: always
+    command:
+      - bash
+      - -c
+      - |
+        pip install -U pip psycopg2-binary boto3
+        mlflow server \
+          --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_MLFLOW} \
+          --default-artifact-root /mlruns --host 0.0.0.0
+    # ports:
+    #   - 5001:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./data/mlflow/mlruns:/mlruns
+    labels:
+      - "traefik.http.services.mlflow.loadbalancer.server.port=5000"
+      - "traefik.http.routers.mlflow.rule=Host(`${URL_MLFLOW}`)"
+      - "traefik.http.routers.mlflow.entrypoints=websecure"
+      - "traefik.http.routers.mlflow.tls.certresolver=resolver"
+
+  influxdb:
+    image: influxdb
+    restart: always
+    container_name: influxdb
+    # ports:
+    #   - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=org
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+      - DOCKER_INFLUXDB_INIT_RETENTION=0
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    labels:
+      - "traefik.http.routers.influxdb.rule=Host(`${URL_INFLUX}`)"
+      - "traefik.http.routers.influxdb.entrypoints=websecure"
+      - "traefik.http.routers.influxdb.tls.certresolver=resolver"
+
+  grafana:
+    image: grafana/grafana
+    restart: always
+    container_name: grafana
+    # ports:
+    #   - "3000:3000"
+    user: root
+    depends_on:
+      - influxdb
+    volumes:
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./data/grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    labels:
+      - "traefik.http.routers.grafana.rule=Host(`${URL_GRAFANA}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=resolver"
