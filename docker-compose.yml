@@ -92,9 +92,7 @@ services:
     depends_on:
       - influxdb
     volumes:
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
       - ./data/grafana:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
     labels:
       - "traefik.http.routers.grafana.rule=Host(`${URL_GRAFANA}`)"
       - "traefik.http.routers.grafana.entrypoints=websecure"
