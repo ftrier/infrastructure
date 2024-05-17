@@ -77,6 +77,8 @@ services:
       - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
       - DOCKER_INFLUXDB_INIT_RETENTION=0
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb2
     labels:
       - "traefik.http.routers.influxdb.rule=Host(`${URL_INFLUX}`)"
       - "traefik.http.routers.influxdb.entrypoints=websecure"
