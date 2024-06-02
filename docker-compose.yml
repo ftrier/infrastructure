@@ -44,8 +44,10 @@ services:
       - -c
       - |
         pip install psycopg2-binary boto3
+        mlflow db upgrade postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_MLFLOW}
         mlflow server --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_MLFLOW} \
-        --default-artifact-root /mlruns --host 0.0.0.0 --app-name basic-auth
+        --host 0.0.0.0
+    # --artifacts-destination /mlruns
     # ports:
     #   - 5001:5000
     depends_on:
@@ -53,9 +55,6 @@ services:
         condition: service_healthy
     volumes:
       - ./data/mlflow/mlruns:/mlruns
-    environment:
-      - MLFLOW_TRACKING_USERNAME=${MLFLOW_TRACKING_USERNAME}
-      - MLFLOW_TRACKING_PASSWORD=${MLFLOW_TRACKING_PASSWORD}
 
     labels:
       - "traefik.http.services.mlflow.loadbalancer.server.port=5000"
